@@ -1,0 +1,129 @@
+---
+// Auditoría — eventos de la semana. Se envían cada sábado 19:00 UTC y se borran.
+import AdminLayout from "../../layouts/Admin.astro"
+import { ENV } from "../../lib/env"
+---
+
+<AdminLayout title="Auditoría" subtitle="Semana actual">
+  <p class="page-desc">
+    Eventos de la semana actual. Cada sábado a las 19:00 UTC se envían a
+    <code class="inline">{ENV.ADMIN_EMAIL}</code> y se eliminan de la base de datos.
+  </p>
+
+  <input type="hidden" id="adminEmail" value={ENV.ADMIN_EMAIL} />
+
+  <div class="flex flex-gap items-center mb-2" style="flex-wrap:wrap;">
+    <button class="btn btn-primary btn-md" id="btnSendReport">Enviar informe semanal ahora</button>
+    <span id="reportStatus" class="text-muted"></span>
+  </div>
+
+  <div class="filter-bar">
+    <input id="filterActor" type="text" class="field-input" placeholder="Filtrar por actor..." style="max-width:220px;" />
+    <input id="filterTarget" type="text" class="field-input" placeholder="Filtrar por objetivo..." style="max-width:220px;" />
+    <select id="filterAction" class="field-input" style="max-width:220px;">
+      <option value="">Todas las acciones</option>
+      <option value="login_success">Inicio de sesión</option>
+      <option value="login_fail">Fallo de login</option>
+      <option value="otp_sent">OTP enviado</option>
+      <option value="oidc_authorize">SSO autorizado</option>
+      <option value="oidc_token">Token emitido</option>
+      <option value="member_create">Miembro creado</option>
+      <option value="member_update">Miembro actualizado</option>
+      <option value="member_delete">Miembro eliminado</option>
+    </select>
+    <button class="btn btn-secondary btn-md" id="btnFilter">Filtrar</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Fecha/Hora</th>
+          <th>Acción</th>
+          <th>Actor</th>
+          <th>Objetivo</th>
+          <th>Detalles</th>
+        </tr>
+      </thead>
+      <tbody id="logsTable"></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  const logsTable = document.getElementById("logsTable") as HTMLTableSectionElement
+  const btnSendReport = document.getElementById("btnSendReport") as HTMLButtonElement
+  const reportStatus = document.getElementById("reportStatus") as HTMLSpanElement
+  const filterActor = document.getElementById("filterActor") as HTMLInputElement
+  const filterTarget = document.getElementById("filterTarget") as HTMLInputElement
+  const filterAction = document.getElementById("filterAction") as HTMLSelectElement
+  const btnFilter = document.getElementById("btnFilter") as HTMLButtonElement
+  const adminEmail = (document.getElementById("adminEmail") as HTMLInputElement)?.value || ""
+
+  const actionLabels: Record<string, string> = {
+    login_success: "Inicio de sesión",
+    login_fail: "Fallo de login",
+    otp_sent: "OTP enviado",
+    oidc_authorize: "SSO autorizado",
+    oidc_token: "Token emitido",
+    member_create: "Miembro creado",
+    member_update: "Miembro actualizado",
+    member_delete: "Miembro eliminado",
+    admin_login: "Acceso admin",
+  }
+
+  function esc(s: string): string {
+    const d = document.createElement("div")
+    d.textContent = s
+    return d.innerHTML
+  }
+
+  async function loadLogs() {
+    try {
+      const params = new URLSearchParams()
+      if (filterActor.value) params.set("actor", filterActor.value)
+      if (filterTarget.value) params.set("target", filterTarget.value)
+      if (filterAction.value) params.set("action", filterAction.value)
+
+      const res = await fetch(`/api/admin/logs?${params.toString()}`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      renderLogs(data.logs || [])
+    } catch {
+      logsTable.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:#c00;">Error cargando logs</td></tr>`
+    }
+  }
+
+  function renderLogs(logs: any[]) {
+    if (!logs.length) {
+      logsTable.innerHTML = `<tr><td colspan="5" class="empty-row">No hay eventos esta semana</td></tr>`
+      return
+    }
+    logsTable.innerHTML = logs.map((log) => `
+      <tr>
+        <td style="white-space:nowrap;">${new Date(log.timestamp).toLocaleString("es-ES")}</td>
+        <td>${actionLabels[log.action] || esc(log.action)}</td>
+        <td>${esc(log.actor)}</td>
+        <td>${esc(log.target || "—")}</td>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(log.details ? JSON.stringify(log.details) : "")}">${log.details ? esc(JSON.stringify(log.details)) : "—"}</td>
+      </tr>
+    `).join("")
+  }
+
+  btnFilter?.addEventListener("click", loadLogs)
+
+  btnSendReport?.addEventListener("click", async () => {
+    if (!confirm(`¿Enviar informe semanal a ${adminEmail} y borrar los logs actuales?`)) return
+    btnSendReport.disabled = true
+    reportStatus.textContent = "Enviando..."
+    try {
+      const res = await fetch("/api/admin/weekly-report", { method: "POST" })
+      const data = await res.json()
+      reportStatus.textContent = res.ok ? data.message : (data.error || "Error")
+      loadLogs()
+    } catch { reportStatus.textContent = "Error de conexión" }
+    finally { btnSendReport.disabled = false }
+  })
+
+  loadLogs()
+</script>

@@ -1,0 +1,70 @@
+---
+import Button from "../components/ui/Button.astro";
+import Card from "../components/ui/Card.astro";
+import Principal from "../layouts/Principal.astro";
+
+const url = new URL(Astro.request.url);
+const instEmail = url.searchParams.get("instEmail") || "";
+const oidcHint = url.searchParams.get("oidc_login_hint") || "";
+const gspEmail = instEmail || oidcHint;
+const clientId = url.searchParams.get("oidc_client_id") || "";
+const ssoName = clientId === "google-workspace" ? "Google Workspace" : clientId;
+---
+
+<Principal title="Confirmación" description="Comprueba si quieres iniciar sesión con la siguiente identidad">
+    <Card title={ssoName}>
+        <p>{gspEmail}</p>
+    </Card>
+    <div id="interActions" class="inter-actions">
+        <Button type="button" label="Confirmar" variant="primary" size="lg" class="inter-btn" />
+        <Button type="button" label="Cerrar sesión y cambiar de cuenta" variant="secondary" size="lg" class="inter-btn" />
+        <Button type="button" label="Rechazar" variant="ghost" size="lg" class="inter-btn" />
+    </div>
+</Principal>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const redirectUri = params.get("oidc_redirect_uri") || "";
+    const state = params.get("oidc_state") || "";
+
+    const buttons = document.querySelectorAll<HTMLButtonElement>(".inter-btn");
+    const [confirmBtn, logoutBtn, rejectBtn] = buttons;
+
+    confirmBtn?.addEventListener("click", () => {
+        const authUrl = new URL("/api/oidc/authorize", window.location.origin);
+        authUrl.searchParams.set("confirmed", "1");
+        for (const key of ["client_id", "redirect_uri", "state", "scope", "nonce", "login_hint", "code_challenge", "code_challenge_method"]) {
+            const val = params.get("oidc_" + key);
+            if (val) authUrl.searchParams.set(key, val);
+        }
+        authUrl.searchParams.set("response_type", "code");
+        window.location.href = authUrl.toString();
+    });
+
+    logoutBtn?.addEventListener("click", async () => {
+        await fetch("/api/logout", { method: "POST" });
+        const loginUrl = new URL("/", window.location.origin);
+        window.location.href = loginUrl.toString();
+    });
+
+    rejectBtn?.addEventListener("click", () => {
+        if (redirectUri && state) {
+            const rejectUrl = new URL(redirectUri);
+            rejectUrl.searchParams.set("error", "access_denied");
+            rejectUrl.searchParams.set("state", state);
+            window.location.href = rejectUrl.toString();
+        } else {
+            window.location.href = "/";
+        }
+    });
+</script>
+
+<style>
+    .inter-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+        margin-top: 1rem;
+    }
+</style>

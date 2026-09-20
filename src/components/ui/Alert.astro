@@ -1,0 +1,42 @@
+---
+export interface Props {
+  type?: "info" | "success" | "warning" | "error"
+  class?: string
+}
+
+const { type = "info" } = Astro.props
+const extraClass = Astro.props.class || ""
+---
+
+<div class={`alert alert-${type} ${extraClass}`}>
+  <slot />
+</div>
+
+<style>
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.info {
+  background: #eef4ff;
+  color: #0044cc;
+  border: 1px solid #ccd9ff;
+}
+.success {
+  background: #e6f9ed;
+  color: #1a7d36;
+  border: 1px solid #b8e6cc;
+}
+.warning {
+  background: #fff8e6;
+  color: #996600;
+  border: 1px solid #ffe0b3;
+}
+.error {
+  background: #fff0f0;
+  color: #cc0000;
+  border: 1px solid #ffcccc;
+}
+</style>

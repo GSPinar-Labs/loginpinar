@@ -1,0 +1,102 @@
+---
+// Página de verificación de código OTP
+// El usuario ingresa el código de 6 dígitos recibido en su email personal.
+// Al verificarse, crea la sesión y redirige al dashboard o al flujo OIDC.
+
+import Principal from "../layouts/Principal.astro";
+import Button from "../components/ui/Button.astro";
+
+const url = new URL(Astro.request.url);
+const personal = url.searchParams.get("personal") || "";
+---
+
+<Principal
+    title="Verificar Código"
+    description={`Introduce el código de 6 dígitos que te enviamos a ${personal}.`}
+>
+    <form class="form" id="verifyForm">
+        <input
+            id="codeInput"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="000000"
+            class="input-field"
+            required
+            autocomplete="off"
+            style="text-align:center;font-size:1.5rem;letter-spacing:0.3em;"
+        />
+        <div id="errorMsg" class="error-msg"></div>
+        <Button label="Iniciar Sesión" type="submit" size="lg" />
+    </form>
+</Principal>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const gspmail = params.get("gspmail") || "";
+    const instEmail = params.get("instEmail") || "";
+    const oidcHint = params.get("oidc_login_hint") || "";
+    const institutionalEmail =
+        instEmail ||
+        oidcHint ||
+        (gspmail ? `${gspmail}@gruposcoutpinar.com` : "");
+    const personal = params.get("personal") || "";
+
+    const personalDisplay = document.getElementById(
+        "personalDisplay",
+    ) as HTMLSpanElement;
+    const form = document.getElementById("verifyForm") as HTMLFormElement;
+    const codeInput = document.getElementById("codeInput") as HTMLInputElement;
+    const errorMsg = document.getElementById("errorMsg") as HTMLDivElement;
+
+    form?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorMsg.textContent = "";
+        const code = codeInput.value.trim();
+        if (!code || !institutionalEmail || !personal) return;
+
+        try {
+            const res = await fetch("/api/verify-code", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    institutionalEmail,
+                    personalEmail: personal,
+                    code,
+                }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                errorMsg.textContent = data.error || "Código incorrecto";
+                return;
+            }
+
+            const hasOidc = params.get("oidc_client_id");
+            if (hasOidc) {
+                const interUrl = new URL("/inter", window.location.origin);
+                interUrl.searchParams.set("instEmail", institutionalEmail);
+                for (const key of [
+                    "oidc_client_id",
+                    "oidc_redirect_uri",
+                    "oidc_state",
+                    "oidc_scope",
+                    "oidc_nonce",
+                    "oidc_login_hint",
+                    "oidc_code_challenge",
+                    "oidc_code_challenge_method",
+                ]) {
+                    const val = params.get(key);
+                    if (val) interUrl.searchParams.set(key, val);
+                }
+                window.location.href = interUrl.toString();
+                return;
+            }
+
+            window.location.href = "/dashboard";
+        } catch {
+            errorMsg.textContent = "Error de conexión. Inténtalo de nuevo.";
+        }
+    });
+</script>

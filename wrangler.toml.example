@@ -1,0 +1,18 @@
+name = "gspinar-sso"
+compatibility_date = "2024-04-03"
+
+# Base de datos D1 (local para desarrollo, cambia database_id para producción)
+[[d1_databases]]
+binding = "DB"
+database_name = "gspinar-sso-local"
+database_id = "local"
+
+# KV para sesiones de Astro (local para desarrollo, cambia id para producción)
+[[kv_namespaces]]
+binding = "SESSION"
+id = "local"
+
+# Cron trigger para informes semanales (sábados a las 19:00h UTC)
+# Descomenta cuando estés en producción:
+# [triggers]
+# crons = ["0 19 * * 6"]

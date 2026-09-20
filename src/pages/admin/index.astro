@@ -1,0 +1,99 @@
+---
+// Panel de administración — resumen general del sistema.
+import AdminLayout from "../../layouts/Admin.astro"
+import { getAllMembers } from "../../lib/members"
+import { getCurrentWeekLogs } from "../../lib/audit"
+import { getAllClients } from "../../lib/clients"
+import { getDB } from "../../lib/d1"
+import { MCP_TOOLS } from "../../lib/mcp"
+import { ENV } from "../../lib/env"
+
+const db = await getDB()
+
+let memberCount = 0
+let logCount = 0
+let clientCount = 0
+try { memberCount = (await getAllMembers(db)).length } catch {}
+try { logCount = (await getCurrentWeekLogs(db)).length } catch {}
+try { clientCount = (await getAllClients(db)).length } catch {}
+
+const stats = [
+  { label: "Miembros", value: memberCount, href: "/admin/members" },
+  { label: "Eventos (semana)", value: logCount, href: "/admin/logs" },
+  { label: "Clientes SSO", value: clientCount, href: "/admin/oidc" },
+  { label: "Herramientas MCP", value: MCP_TOOLS.length, href: "/admin/mcp" },
+]
+
+let recent: Awaited<ReturnType<typeof getCurrentWeekLogs>> = []
+try { recent = await getCurrentWeekLogs(db, { limit: 8 }) } catch {}
+
+const actionLabels: Record<string, string> = {
+  login_success: "Inicio de sesión",
+  login_fail: "Fallo de login",
+  otp_sent: "OTP enviado",
+  oidc_authorize: "SSO autorizado",
+  oidc_token: "Token emitido",
+  member_create: "Miembro creado",
+  member_update: "Miembro actualizado",
+  member_delete: "Miembro eliminado",
+  admin_login: "Acceso admin",
+}
+
+const mcpConfigured = !!ENV.MCP_SECRET
+---
+
+<AdminLayout title="Panel" subtitle={ENV.APP_URL}>
+  <div class="stat-grid">
+    {stats.map((s) => (
+      <a href={s.href} class="stat-card card">
+        <div class="stat-value">{s.value}</div>
+        <div class="stat-label">{s.label}</div>
+      </a>
+    ))}
+  </div>
+
+  <div class="admin-grid" style="margin-top:1.5rem;">
+    <section class="card">
+      <h2 class="card-title">Actividad reciente</h2>
+      <p class="card-desc">Últimos eventos de auditoría de esta semana.</p>
+      {recent.length ? (
+        <table class="data-table">
+          <thead>
+            <tr><th>Fecha</th><th>Acción</th><th>Actor</th></tr>
+          </thead>
+          <tbody>
+            {recent.map((log) => (
+              <tr>
+                <td style="white-space:nowrap;">{new Date(log.timestamp).toLocaleString("es-ES")}</td>
+                <td>{actionLabels[log.action] || log.action}</td>
+                <td>{log.actor}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p class="text-muted">Sin eventos esta semana.</p>
+      )}
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Estado del sistema</h2>
+      <p class="card-desc">Servicios que componen el SSO.</p>
+      <dl class="kv">
+        <dt>Base de datos</dt><dd>Turso (libSQL)</dd>
+        <dt>Proveedor SSO</dt><dd>Google Workspace (OIDC)</dd>
+        <dt>Correo</dt><dd>SendPulse</dd>
+        <dt>Servidor MCP</dt>
+        <dd>
+          {mcpConfigured
+            ? <span class="badge badge-active">Configurado</span>
+            : <span class="badge badge-inactive">Sin token</span>}
+        </dd>
+        <dt>Admin</dt><dd>{ENV.ADMIN_EMAIL}</dd>
+      </dl>
+      <div style="margin-top:1.25rem;">
+        <a href="/admin/mcp" class="btn btn-ghost btn-md">Ver servidor MCP</a>
+      </div>
+    </section>
+  </div>
+</AdminLayout>

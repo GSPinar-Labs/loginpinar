@@ -1,0 +1,71 @@
+---
+export interface Props {
+  id: string
+  type?: "text" | "email" | "password" | "number" | "tel" | "url"
+  label: string
+  placeholder?: string
+  value?: string
+  required?: boolean
+  pattern?: string
+  maxlength?: number
+  inputmode?: string
+  class?: string
+  hint?: string
+}
+
+const { id, type = "text", label, placeholder = "", value = "", required = false, pattern, maxlength, inputmode, hint } = Astro.props
+const extraClass = Astro.props.class || ""
+---
+
+<div class="input-group {extraClass}">
+  <label for={id}>{label}</label>
+  {hint && <span class="input-hint">{hint}</span>}
+  <input
+    {id}
+    {type}
+    {placeholder}
+    {required}
+    {pattern}
+    {maxlength}
+    {inputmode}
+    value={value}
+    class="input-field"
+  />
+</div>
+
+<style>
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.input-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.input-hint {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: -0.1rem;
+}
+.input-field {
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  border: 1.5px solid #d1d1d6;
+  border-radius: 0;
+  transition: border-color 0.15s ease;
+  font-family: inherit;
+  background: #fff;
+}
+.input-field:focus {
+  outline: none;
+  border-color: #0055ff;
+  box-shadow: 0 0 0 3px rgba(0,85,255,0.12);
+}
+.input-field::placeholder {
+  color: #aaa;
+}
+</style>

@@ -1,0 +1,88 @@
+---
+// Página de verificación de acceso
+// Muestra el Correo GSP al que se intenta acceder y pide el email personal del usuario.
+// Envía un OTP al email personal si el usuario está asociado al Correo GSP.
+
+import Principal from "../layouts/Principal.astro";
+import Button from "../components/ui/Button.astro";
+import Alert from "../components/ui/Alert.astro";
+
+const url = new URL(Astro.request.url);
+const gspmail = url.searchParams.get("gspmail") || "";
+const oidc_login_hint = url.searchParams.get("oidc_login_hint") || "";
+const institutionalEmail =
+    oidc_login_hint || (gspmail ? `${gspmail}@gruposcoutpinar.com` : "");
+---
+
+<Principal
+    title="Verificar Acceso"
+    description={`Ingresa tu correo personal para acceder a ${institutionalEmail}`}
+>
+    <form class="form" id="personalForm">
+        <input
+            id="personalEmail"
+            type="email"
+            placeholder="correo@personal.es"
+            class="input-field"
+            required
+            autocomplete="off"
+        />
+        <div id="errorMsg" class="error-msg"></div>
+        <Button label="Enviar código" type="submit" size="lg" />
+    </form>
+</Principal>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const gspmail = params.get("gspmail") || "";
+    const oidcHint = params.get("oidc_login_hint") || "";
+    const institutionalEmail =
+        oidcHint || (gspmail ? `${gspmail}@gruposcoutpinar.com` : "");
+
+    const form = document.getElementById("personalForm") as HTMLFormElement;
+    const input = document.getElementById("personalEmail") as HTMLInputElement;
+    const errorMsg = document.getElementById("errorMsg") as HTMLDivElement;
+
+    form?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorMsg.textContent = "";
+        const personalEmail = input.value.trim();
+        if (!personalEmail || !institutionalEmail) return;
+
+        try {
+            const res = await fetch("/api/verify-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ institutionalEmail, personalEmail }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                errorMsg.textContent = data.error || "Error al verificar";
+                return;
+            }
+
+            const verifyUrl = new URL("/verify", window.location.origin);
+            verifyUrl.searchParams.set("instEmail", institutionalEmail);
+            verifyUrl.searchParams.set("personal", personalEmail);
+            for (const key of [
+                "oidc_client_id",
+                "oidc_redirect_uri",
+                "oidc_state",
+                "oidc_scope",
+                "oidc_nonce",
+                "oidc_code_challenge",
+                "oidc_code_challenge_method",
+                "oidc_login_hint",
+                "platform",
+            ]) {
+                const val = params.get(key);
+                if (val) verifyUrl.searchParams.set(key, val);
+            }
+
+            window.location.href = verifyUrl.toString();
+        } catch {
+            errorMsg.textContent = "Error de conexión. Inténtalo de nuevo.";
+        }
+    });
+</script>

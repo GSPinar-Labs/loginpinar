@@ -1,0 +1,30 @@
+---
+export interface Props {
+  active: boolean
+  label?: string
+}
+
+const { active, label } = Astro.props
+const displayLabel = label ?? (active ? "Activo" : "Inactivo")
+---
+
+<span class={`badge ${active ? "badge-active" : "badge-inactive"}`}>{displayLabel}</span>
+
+<style>
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-active {
+  background: #e6f9ed;
+  color: #1a7d36;
+}
+.badge-inactive {
+  background: #f0f0f2;
+  color: #888;
+}
+</style>

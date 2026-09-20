@@ -1,0 +1,69 @@
+---
+// Configuración inicial (Setup Wizard)
+// Aparece la primera vez que se despliega el sistema.
+// Crea el primer usuario administrador.
+
+import Principal from "../layouts/Principal.astro"
+import Button from "../components/ui/Button.astro"
+import Card from "../components/ui/Card.astro"
+import { getDB } from "../lib/d1"
+import { getAdminCount } from "../lib/members"
+
+const db = await getDB()
+let needsSetup = true
+try {
+  const count = await getAdminCount(db)
+  needsSetup = count === 0
+} catch {}
+---
+
+{
+  !needsSetup ? (
+    <Principal title="Configuración" description="El sistema ya está configurado.">
+      <p class="text-muted">Redirigiendo al inicio de sesión...</p>
+      <meta http-equiv="refresh" content="2;url=/" />
+    </Principal>
+  ) : (
+    <Principal title="Configuración Inicial" description="Bienvenido a GSPinar SSO. Crea el primer administrador para comenzar.">
+      <form class="form" id="setupForm">
+        <div class="input-group">
+          <label for="name">Nombre completo</label>
+          <input id="name" type="text" class="input-field" required placeholder="Tu nombre" />
+        </div>
+        <div class="input-group">
+          <label for="personalEmail">Tu correo personal</label>
+          <input id="personalEmail" type="email" class="input-field" required placeholder="tucorreo@gmail.com" />
+        </div>
+        <div id="errorMsg" class="error-msg"></div>
+        <Button label="Crear administrador y comenzar" type="submit" size="lg" />
+      </form>
+    </Principal>
+  )
+}
+
+<script>
+  const form = document.getElementById("setupForm") as HTMLFormElement
+  const nameInput = document.getElementById("name") as HTMLInputElement
+  const emailInput = document.getElementById("personalEmail") as HTMLInputElement
+  const errorMsg = document.getElementById("errorMsg") as HTMLDivElement
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault()
+    errorMsg.textContent = ""
+    const name = nameInput.value.trim()
+    const personalEmail = emailInput.value.trim()
+
+    if (!name || !personalEmail) { errorMsg.textContent = "Completa todos los campos"; return }
+
+    try {
+      const res = await fetch("/api/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, personalEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) { errorMsg.textContent = data.error || "Error"; return }
+      window.location.href = "/admin"
+    } catch { errorMsg.textContent = "Error de conexión" }
+  })
+</script>

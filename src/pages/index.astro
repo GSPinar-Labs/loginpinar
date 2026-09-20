@@ -1,0 +1,99 @@
+---
+// Página de inicio — Login
+// Si es la primera ejecución (no hay admin), redirige al setup wizard.
+
+import Principal from "../layouts/Principal.astro";
+import Button from "../components/ui/Button.astro";
+import { verifySessionToken } from "../lib/jwt";
+import { getDB } from "../lib/d1";
+import { getAdminCount } from "../lib/members";
+
+const url = new URL(Astro.request.url);
+const oidc_client_id = url.searchParams.get("oidc_client_id") || "";
+
+// Si no hay administradores, redirigir al setup
+try {
+    const db = await getDB();
+    const count = await getAdminCount(db);
+    if (count === 0) {
+        return Astro.redirect("/setup");
+    }
+} catch {}
+
+// Si NO es un flujo OIDC y ya hay sesión, redirigir al dashboard
+if (!oidc_client_id) {
+    const token = Astro.cookies.get("session_token")?.value;
+    if (token) {
+        try {
+            await verifySessionToken(token);
+            return Astro.redirect("/dashboard");
+        } catch {
+            // token inválido
+        }
+    }
+}
+---
+
+<Principal
+    title="Iniciar Sesión"
+    description="Ingresa tu cuenta de Grupo Scout Pinar para acceder."
+>
+    <form class="form" id="gspForm">
+        <input
+            id="gspmail"
+            type="text"
+            placeholder="rama o cargo"
+            required
+            class="input-field"
+            autocomplete="off"
+        />
+        <div
+            style="font-family: 'DM Mono', monospace; font-size: 1.1rem; text-transform: uppercase; font-size: 12px; text-align: right;"
+        >
+            @gruposcoutpinar.com
+        </div>
+        <br />
+        <Button label="Continuar" type="submit" size="lg" />
+    </form>
+</Principal>
+
+<style>
+    a {
+        text-decoration: none;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        display: flex;
+    }
+</style>
+
+<script>
+    const form = document.getElementById("gspForm") as HTMLFormElement;
+    const input = document.getElementById("gspmail") as HTMLInputElement;
+    const params = new URLSearchParams(window.location.search);
+
+    form?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const email = input.value.trim();
+        if (!email) return;
+
+        const url = new URL("/login", window.location.origin);
+        url.searchParams.set("gspmail", email);
+
+        // Propagar parámetros OIDC si existen
+        for (const key of [
+            "oidc_client_id",
+            "oidc_redirect_uri",
+            "oidc_state",
+            "oidc_scope",
+            "oidc_nonce",
+            "oidc_login_hint",
+            "platform",
+        ]) {
+            const val = params.get(key);
+            if (val) url.searchParams.set(key, val);
+        }
+
+        window.location.href = url.toString();
+    });
+</script>

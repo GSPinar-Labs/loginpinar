@@ -1,0 +1,71 @@
+---
+import Principal from "../layouts/Principal.astro";
+import Card from "../components/ui/Card.astro";
+import Button from "../components/ui/Button.astro";
+import { verifySessionToken } from "../lib/jwt";
+
+const token = Astro.cookies.get("session_token")?.value || "";
+if (!token) return Astro.redirect("/");
+
+let user;
+try {
+    user = await verifySessionToken(token);
+} catch {
+    return Astro.redirect("/");
+}
+---
+
+<Principal title={`Sesión de ${user.name}`} description={"Datos de la sesión:"}>
+    <Card>
+        <h4>Correo Personal</h4><p>{user.personalEmail}</p>
+        <h4>Correos GSP</h4>
+        {user.institutionalEmails.map((email: string) => <p>{email}</p>)}
+    </Card>
+    <br />
+    <Button
+        label="Ir a Pinar Virtual"
+        variant="primary"
+        size="lg"
+        url="http://virtual.gspinar.com/"
+    />
+    <br />
+
+    {
+        user.admin && (
+            <Button
+                label="Acceder a admin"
+                variant="secondary"
+                size="lg"
+                url="/admin"
+            />
+        )
+    }
+
+    <form id="logoutForm" action="/" method="GET" class="logout-form">
+        <Button
+            label="Cerrar sesión"
+            variant="secondary"
+            size="md"
+            type="submit"
+        />
+    </form>
+</Principal>
+
+<style>
+    #logoutForm {
+        position: absolute;
+        display: inline-block;
+        bottom: 3%;
+        margin-top: 1rem;
+    }
+</style>
+
+<script>
+    document
+        .getElementById("logoutForm")
+        ?.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            await fetch("/api/logout", { method: "POST" });
+            window.location.href = "/";
+        });
+</script>

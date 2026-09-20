@@ -1,0 +1,77 @@
+---
+export interface Props {
+    title: string;
+    description: string;
+    logo?: string;
+}
+
+const { title, description, logo = "/favicon.svg" } = Astro.props;
+---
+
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="generator" content={Astro.generator} />
+        <link rel="stylesheet" href="/styles/main.css" />
+        <title>{title} — GSPinar</title>
+    </head>
+    <body class="auth-page">
+        <div class="auth-container">
+            <div class="auth-box">
+                <img class="auth-logo" src={logo} alt="GSP" />
+                <h1 class="auth-title">{title}</h1>
+                <p class="auth-desc">{description}</p>
+                <slot />
+            </div>
+        </div>
+    </body>
+</html>
+
+<style>
+    .auth-page {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background: var(--gris-claro);
+        background-image: url("/img/bg.svg");
+        background-size: cover;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .auth-container {
+        width: 100%;
+        max-width: 420px;
+        padding: 1rem;
+    }
+    .auth-box {
+        background: var(--blanco);
+        border-radius: 0;
+        padding: 2.5rem 2rem;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .auth-logo {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+        margin-bottom: 1rem;
+    }
+    .auth-title {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #1d1d1f;
+    }
+    .auth-desc {
+        font-size: 0.85rem;
+        color: #888;
+        margin: 0.5rem 0 1.5rem 0;
+        line-height: 1.4;
+    }
+</style>

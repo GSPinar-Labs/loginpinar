@@ -1,0 +1,51 @@
+---
+import Button from "../components/ui/Button.astro";
+import Card from "../components/ui/Card.astro";
+import Principal from "../layouts/Principal.astro";
+---
+
+<Principal
+    title="Cerrar sesión"
+    description="Has cerrado sesión en la app. ¿Quieres hacerlo también en el resto de sitios?"
+>
+    <div class="logout-actions">
+        <Button
+            type="button"
+            label="Cerrar sesión en todos lados"
+            variant="primary"
+            size="lg"
+            class="logout-btn"
+        />
+        <Button
+            type="button"
+            label="Mantener sesión"
+            variant="secondary"
+            size="lg"
+            class="stay-btn"
+        />
+    </div>
+</Principal>
+
+<script>
+    document
+        .querySelector(".logout-btn button")
+        ?.addEventListener("click", async () => {
+            await fetch("/api/logout", { method: "POST" });
+            window.location.href = "https://accounts.google.com/logout";
+        });
+
+    document
+        .querySelector(".stay-btn button")
+        ?.addEventListener("click", () => {
+            window.location.href = "/dashboard";
+        });
+</script>
+
+<style>
+    .logout-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+</style>

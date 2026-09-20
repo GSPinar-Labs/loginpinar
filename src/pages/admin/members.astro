@@ -1,0 +1,244 @@
+---
+// Gestión de miembros.
+// Chips para Correos GSP: escribe "castores" → castores@gruposcoutpinar.com
+import AdminLayout from "../../layouts/Admin.astro"
+import { ENV } from "../../lib/env"
+---
+
+<AdminLayout title="Miembros" subtitle={`${ENV.ADMIN_EMAIL} es admin`}>
+  <p class="page-desc">
+    Son administradores quienes tengan <code class="inline">{ENV.ADMIN_EMAIL}</code> entre sus Correos GSP.
+  </p>
+
+  <input type="hidden" id="adminEmail" value={ENV.ADMIN_EMAIL} />
+
+  <div class="filter-bar" style="margin-top:0;">
+    <button class="btn btn-primary btn-md" id="btnNew">+ Nuevo miembro</button>
+    <input type="text" id="filterInput" class="field-input" placeholder="Filtrar por nombre o correo..." style="flex:1;max-width:320px;" />
+    <span id="countLabel" class="text-muted"></span>
+  </div>
+
+  <div id="formContainer" class="card mb-2" style="display:none;">
+    <h3 id="formTitle" class="card-title">Nuevo miembro</h3>
+    <p class="card-desc">El correo personal es el que usa la persona para iniciar sesión. Los Correos GSP dan acceso a las cuentas del grupo.</p>
+    <input type="hidden" id="memberId" />
+    <div class="field">
+      <label class="field-label" for="inpName">Nombre completo</label>
+      <input type="text" id="inpName" class="field-input" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="inpPersonal">Correo personal</label>
+      <input type="email" id="inpPersonal" class="field-input" placeholder="nombre@ejemplo.com" />
+    </div>
+    <div class="field">
+      <label class="field-label">Correos GSP</label>
+      <div id="chipContainer" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem;min-height:1.5rem;"></div>
+      <div style="display:flex;gap:0.25rem;align-items:center;">
+        <input type="text" id="inpChipPrefix" class="field-input" placeholder="ej: castores" style="flex:1;" />
+        <span style="font-size:0.85rem;color:var(--gris-oscuro);white-space:nowrap;">@gruposcoutpinar.com</span>
+      </div>
+      <div class="field-hint">Escribe y pulsa Enter. Ej: <code class="inline">castores</code>, <code class="inline">coordinacion</code>, <code class="inline">web</code>.</div>
+    </div>
+    <div id="formError" class="error-msg"></div>
+    <div class="flex flex-gap">
+      <button class="btn btn-primary btn-md" id="btnSave">Guardar</button>
+      <button class="btn btn-secondary btn-md" id="btnCancel">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Correo personal</th>
+          <th>Correos GSP</th>
+          <th>Admin</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="membersTable"></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  const ADMIN = (document.getElementById("adminEmail") as HTMLInputElement).value
+  const formContainer = document.getElementById("formContainer") as HTMLDivElement
+  const formTitle = document.getElementById("formTitle") as HTMLHeadingElement
+  const memberId = document.getElementById("memberId") as HTMLInputElement
+  const inpName = document.getElementById("inpName") as HTMLInputElement
+  const inpPersonal = document.getElementById("inpPersonal") as HTMLInputElement
+  const inpChipPrefix = document.getElementById("inpChipPrefix") as HTMLInputElement
+  const chipContainer = document.getElementById("chipContainer") as HTMLDivElement
+  const formError = document.getElementById("formError") as HTMLDivElement
+  const membersTable = document.getElementById("membersTable") as HTMLTableSectionElement
+  const filterInput = document.getElementById("filterInput") as HTMLInputElement
+  const countLabel = document.getElementById("countLabel") as HTMLSpanElement
+
+  let editingId: string | null = null
+  let chips: string[] = []
+  let allMembers: any[] = []
+
+  function esc(s: string): string {
+    const d = document.createElement("div"); d.textContent = s; return d.innerHTML
+  }
+
+  function renderChips() {
+    chipContainer.innerHTML = chips.map((c) =>
+      `<span class="gsp-chip">${esc(c)}<button class="chip-del" data-prefix="${esc(c)}">&times;</button></span>`
+    ).join("")
+    document.querySelectorAll(".chip-del").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const prefix = (btn as HTMLButtonElement).dataset.prefix!
+        chips = chips.filter((c) => c !== prefix)
+        renderChips()
+      })
+    )
+  }
+
+  function addChip(prefix: string) {
+    const p = prefix.trim().toLowerCase()
+    if (!p || chips.includes(p)) return
+    chips.push(p)
+    renderChips()
+    inpChipPrefix.value = ""
+  }
+
+  inpChipPrefix.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addChip(inpChipPrefix.value) }
+  })
+  inpChipPrefix.addEventListener("blur", () => { if (inpChipPrefix.value.trim()) addChip(inpChipPrefix.value) })
+  filterInput.addEventListener("input", () => renderMembers(allMembers))
+
+  async function loadMembers() {
+    try {
+      const res = await fetch("/api/admin/members")
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      allMembers = data.members || []
+      renderMembers(allMembers)
+    } catch {
+      membersTable.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:#c00;">Error cargando datos</td></tr>`
+    }
+  }
+
+  function renderMembers(members: any[]) {
+    const filter = filterInput.value.toLowerCase().trim()
+    const filtered = filter
+      ? members.filter((m) => {
+          const gsp = (m.institutionalEmails || []).join(" ").toLowerCase()
+          return m.name.toLowerCase().includes(filter) ||
+                 m.personalEmail.toLowerCase().includes(filter) ||
+                 gsp.includes(filter)
+        })
+      : members
+
+    countLabel.textContent = `${filtered.length} de ${members.length}`
+
+    if (!filtered.length) {
+      membersTable.innerHTML = `<tr><td colspan="5" class="empty-row">No hay miembros que coincidan</td></tr>`
+      return
+    }
+    membersTable.innerHTML = filtered.map((m) => {
+      const gspEmails: string[] = m.institutionalEmails || []
+      const isAdmin = gspEmails.includes(ADMIN)
+      const loggedOut = !!m.force_logout_after
+      return `<tr${loggedOut ? ' class="force-logged-out"' : ''}>
+        <td>${esc(m.name)}${loggedOut ? ' <span class="logged-out-badge">(sesión cerrada)</span>' : ''}</td>
+        <td>${esc(m.personalEmail)}</td>
+        <td>${gspEmails.length ? gspEmails.map((e: string) => `<span class="gsp-chip-plain">${esc(e)}</span>`).join("") : "—"}</td>
+        <td>${isAdmin ? '<span class="badge badge-neutral">Admin</span>' : '<span class="text-muted">No</span>'}</td>
+        <td>
+          <div class="actions-cell">
+            <button class="btn-edit btn btn-ghost btn-sm" data-id="${m.id}">Editar</button>
+            <button class="btn-force-logout btn btn-secondary btn-sm" data-id="${m.id}">Cerrar sesión</button>
+            <button class="btn-delete btn btn-danger btn-sm" data-id="${m.id}">Eliminar</button>
+          </div>
+        </td>
+      </tr>`
+    }).join("")
+
+    document.querySelectorAll(".btn-edit").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const id = (btn as HTMLButtonElement).dataset.id!
+        const member = members.find((m: any) => String(m.id) === id)
+        if (member) startEdit(member)
+      }))
+    document.querySelectorAll(".btn-delete").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const id = (btn as HTMLButtonElement).dataset.id!
+        if (!confirm("¿Eliminar este miembro?")) return
+        try {
+          const res = await fetch(`/api/admin/members?id=${id}`, { method: "DELETE" })
+          if (!res.ok) throw new Error()
+          loadMembers()
+        } catch { alert("Error eliminando") }
+      }))
+    document.querySelectorAll(".btn-force-logout").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const id = (btn as HTMLButtonElement).dataset.id!
+        if (!confirm("¿Cerrar sesión de este usuario en todos los dispositivos?")) return
+        try {
+          const res = await fetch("/api/admin/members", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, action: "force-logout" }),
+          })
+          if (!res.ok) throw new Error()
+          loadMembers()
+        } catch { alert("Error al cerrar sesión") }
+      }))
+  }
+
+  function startEdit(member: any) {
+    editingId = String(member.id)
+    formTitle.textContent = "Editar miembro"
+    memberId.value = member.id
+    inpName.value = member.name
+    inpPersonal.value = member.personalEmail
+    chips = (member.institutionalEmails || []).map((e: string) => e.replace("@gruposcoutpinar.com", ""))
+    renderChips()
+    formError.textContent = ""
+    formContainer.style.display = "block"
+    formContainer.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }
+
+  function resetForm() {
+    editingId = null
+    formTitle.textContent = "Nuevo miembro"
+    memberId.value = ""
+    inpName.value = ""
+    inpPersonal.value = ""
+    chips = []
+    renderChips()
+    formError.textContent = ""
+    formContainer.style.display = "none"
+  }
+
+  document.getElementById("btnNew")?.addEventListener("click", () => { resetForm(); formContainer.style.display = "block" })
+  document.getElementById("btnCancel")?.addEventListener("click", resetForm)
+
+  document.getElementById("btnSave")?.addEventListener("click", async () => {
+    formError.textContent = ""
+    const name = inpName.value.trim()
+    const personalEmail = inpPersonal.value.trim()
+    const institutionalEmails = chips.map((c) => c + "@gruposcoutpinar.com")
+    if (!name || !personalEmail || !institutionalEmails.length) {
+      formError.textContent = "Completa todos los campos obligatorios"
+      return
+    }
+    try {
+      const res = await fetch("/api/admin/members", {
+        method: editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingId ? { id: editingId, name, personalEmail, institutionalEmails } : { name, personalEmail, institutionalEmails }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error") }
+      resetForm()
+      loadMembers()
+    } catch (e: any) { formError.textContent = e.message || "Error guardando" }
+  })
+
+  loadMembers()
+</script>

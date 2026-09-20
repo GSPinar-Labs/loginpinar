@@ -1,0 +1,123 @@
+---
+// Sección MCP — servidor de gestión de miembros para agentes de IA.
+import AdminLayout from "../../layouts/Admin.astro"
+import { ENV } from "../../lib/env"
+import { MCP_TOOLS } from "../../lib/mcp"
+import { getDB } from "../../lib/d1"
+import { getCurrentWeekLogs } from "../../lib/audit"
+
+const endpoint = `${ENV.APP_URL}/api/mcp`
+const configured = !!ENV.MCP_SECRET
+
+const db = await getDB()
+let activity: Awaited<ReturnType<typeof getCurrentWeekLogs>> = []
+try { activity = await getCurrentWeekLogs(db, { actor: "mcp", limit: 10 }) } catch {}
+
+const opencodeConfig = `{
+  "mcp": {
+    "gspinar": {
+      "type": "remote",
+      "url": "${endpoint}",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer TU_TOKEN_MCP"
+      }
+    }
+  }
+}`
+---
+
+<AdminLayout title="MCP" subtitle="Servidor de gestión de miembros">
+  <p class="page-desc">
+    Servidor <strong>Model Context Protocol</strong> que permite a agentes de IA (opencode, Claude, etc.)
+    consultar y gestionar los miembros del Grupo Scout Pinar. Usa transporte <em>Streamable HTTP</em>
+    y se autentica con un token <code class="inline">Bearer</code>.
+  </p>
+
+  <section class="card mb-2">
+    <h2 class="card-title">Conexión</h2>
+    <p class="card-desc">Endpoint del servidor y estado de autenticación.</p>
+    <div class="endpoint-row">
+      <span class="endpoint-value" id="mcpEndpoint">{endpoint}</span>
+      <button class="btn btn-secondary btn-md" data-copy={endpoint}>Copiar</button>
+    </div>
+    <dl class="kv" style="margin-top:1.25rem;">
+      <dt>Estado</dt>
+      <dd>
+        {configured
+          ? <span class="badge badge-active">Token configurado</span>
+          : <span class="badge badge-inactive">Sin token (MCP_SECRET no definido)</span>}
+      </dd>
+      <dt>Transporte</dt><dd>Streamable HTTP</dd>
+      <dt>Autenticación</dt><dd><code class="inline">Authorization: Bearer &lt;MCP_SECRET&gt;</code></dd>
+    </dl>
+    {!configured && (
+      <div class="alert alert-warning" style="margin-top:1rem;">
+        Define el secreto <code class="inline">MCP_SECRET</code> en el entorno del hosting para activar el servidor.
+        Genera uno con <code class="inline">openssl rand -hex 32</code>.
+      </div>
+    )}
+  </section>
+
+  <section class="mb-2">
+    <h2 class="section-title">Herramientas disponibles ({MCP_TOOLS.length})</h2>
+    <div class="tool-list">
+      {MCP_TOOLS.map((tool) => (
+        <div class="tool-item">
+          <div class="tool-name">{tool.name}</div>
+          <div class="tool-desc">{tool.description}</div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="card mb-2">
+    <h2 class="card-title">Conectar desde opencode</h2>
+    <p class="card-desc">
+      Añade este bloque a <code class="inline">~/.config/opencode/opencode.jsonc</code> y sustituye
+      <code class="inline">TU_TOKEN_MCP</code> por el valor de <code class="inline">MCP_SECRET</code>.
+    </p>
+    <div class="code-block" data-code>{opencodeConfig}<button class="copy-btn" data-copy={opencodeConfig}>Copiar</button></div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Actividad reciente del MCP</h2>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr><th>Fecha/Hora</th><th>Acción</th><th>Objetivo</th><th>Detalles</th></tr>
+        </thead>
+        <tbody>
+          {activity.length ? (
+            activity.map((log) => (
+              <tr>
+                <td style="white-space:nowrap;">{new Date(log.timestamp).toLocaleString("es-ES")}</td>
+                <td>{log.action}</td>
+                <td>{log.target || "—"}</td>
+                <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title={log.details ? JSON.stringify(log.details) : ""}>
+                  {log.details ? JSON.stringify(log.details) : "—"}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr><td colspan="4" class="empty-row">Sin actividad registrada del MCP esta semana.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</AdminLayout>
+
+<script>
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const value = (btn as HTMLElement).dataset.copy || ""
+      try {
+        await navigator.clipboard.writeText(value)
+        const original = btn.textContent
+        btn.textContent = "Copiado"
+        setTimeout(() => { btn.textContent = original }, 1500)
+      } catch {}
+    })
+  })
+</script>

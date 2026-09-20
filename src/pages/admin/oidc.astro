@@ -1,0 +1,203 @@
+---
+// Gestión de clientes SSO (OIDC).
+import AdminLayout from "../../layouts/Admin.astro"
+import { ENV } from "../../lib/env"
+---
+
+<AdminLayout title="SSO" subtitle="Clientes OIDC">
+  <p class="page-desc">
+    Servicios que usan SSO con GSPinar. Google Workspace viene preconfigurado; para otros
+    servicios, crea un nuevo cliente OIDC con su <em>client secret</em> y sus <em>redirect URIs</em>.
+  </p>
+
+  <div class="filter-bar" style="margin-top:0;">
+    <button class="btn btn-primary btn-md" id="btnNew">+ Nuevo cliente SSO</button>
+  </div>
+
+  <div id="formContainer" class="card mb-2" style="display:none;">
+    <h3 id="formTitle" class="card-title">Nuevo cliente SSO</h3>
+    <input type="hidden" id="clientPk" />
+    <div class="field">
+      <label class="field-label" for="inpClientId">ID del cliente</label>
+      <input type="text" id="inpClientId" class="field-input" placeholder="ej: google-workspace" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="inpName">Nombre</label>
+      <input type="text" id="inpName" class="field-input" placeholder="Google Workspace" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="inpDesc">Descripción</label>
+      <input type="text" id="inpDesc" class="field-input" placeholder="Correo, Drive, Calendar..." />
+    </div>
+    <div class="field">
+      <label class="field-label" for="inpSecret">Client Secret</label>
+      <input type="password" id="inpSecret" class="field-input" placeholder="Si se deja vacío, se usa OIDC_CLIENT_SECRET del entorno" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="inpUris">Redirect URIs (una por línea)</label>
+      <textarea id="inpUris" class="field-input" style="min-height:80px;font-family:monospace;font-size:0.85rem;" placeholder="https://accounts.google.com/oidcrp/XXXXX/cb"></textarea>
+    </div>
+    <div id="formError" class="error-msg"></div>
+    <div class="flex flex-gap">
+      <button class="btn btn-primary btn-md" id="btnSave">Guardar</button>
+      <button class="btn btn-secondary btn-md" id="btnCancel">Cancelar</button>
+    </div>
+  </div>
+
+  <div id="clientList" class="tool-list"></div>
+</AdminLayout>
+
+<script>
+  const formContainer = document.getElementById("formContainer") as HTMLDivElement
+  const formTitle = document.getElementById("formTitle") as HTMLHeadingElement
+  const clientPk = document.getElementById("clientPk") as HTMLInputElement
+  const inpClientId = document.getElementById("inpClientId") as HTMLInputElement
+  const inpName = document.getElementById("inpName") as HTMLInputElement
+  const inpDesc = document.getElementById("inpDesc") as HTMLInputElement
+  const inpSecret = document.getElementById("inpSecret") as HTMLInputElement
+  const inpUris = document.getElementById("inpUris") as HTMLTextAreaElement
+  const formError = document.getElementById("formError") as HTMLDivElement
+  const clientList = document.getElementById("clientList") as HTMLDivElement
+
+  let editingId: string | null = null
+
+  function esc(s: string): string {
+    const d = document.createElement("div")
+    d.textContent = s
+    return d.innerHTML
+  }
+
+  async function loadClients() {
+    try {
+      const res = await fetch("/api/admin/oidc")
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      renderClients(data.clients || [])
+    } catch {
+      clientList.innerHTML = `<div class="alert alert-error">Error cargando clientes</div>`
+    }
+  }
+
+  function renderClients(clients: any[]) {
+    if (!clients.length) {
+      clientList.innerHTML = `<p class="text-muted">No hay clientes configurados.</p>`
+      return
+    }
+    clientList.innerHTML = clients.map((c) => `
+      <div class="tool-item" style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+        <div style="min-width:0;">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <strong>${esc(c.name)}</strong>
+            <span class="text-muted">${esc(c.clientId)}</span>
+            ${c.enabled ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}
+          </div>
+          ${c.description ? `<div class="text-muted" style="margin-top:0.2rem;">${esc(c.description)}</div>` : ""}
+          <div class="text-muted" style="margin-top:0.2rem;font-size:0.75rem;">
+            URIs: ${esc((c.redirectUris || []).join(", ")) || "—"}
+          </div>
+        </div>
+        <div class="actions-cell">
+          <button class="btn-edit btn btn-ghost btn-sm" data-id="${c.id}">Editar</button>
+          <button class="btn-toggle btn btn-secondary btn-sm" data-id="${c.id}" data-enabled="${c.enabled}">${c.enabled ? "Desactivar" : "Activar"}</button>
+          <button class="btn-delete btn btn-danger btn-sm" data-id="${c.id}">Eliminar</button>
+        </div>
+      </div>
+    `).join("")
+
+    document.querySelectorAll(".btn-edit").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const id = (btn as HTMLButtonElement).dataset.id!
+        const client = clients.find((c) => String(c.id) === id)
+        if (client) startEdit(client)
+      }))
+    document.querySelectorAll(".btn-toggle").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const id = (btn as HTMLButtonElement).dataset.id!
+        const enabled = (btn as HTMLButtonElement).dataset.enabled === "true"
+        try {
+          await fetch("/api/admin/oidc", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, enabled: !enabled }) })
+          loadClients()
+        } catch { alert("Error") }
+      }))
+    document.querySelectorAll(".btn-delete").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const id = (btn as HTMLButtonElement).dataset.id!
+        if (!confirm("¿Eliminar este cliente?")) return
+        try {
+          const res = await fetch(`/api/admin/oidc?id=${id}`, { method: "DELETE" })
+          if (!res.ok) throw new Error()
+          loadClients()
+        } catch { alert("Error eliminando") }
+      }))
+  }
+
+  function startEdit(client: any) {
+    editingId = String(client.id)
+    formTitle.textContent = "Editar cliente"
+    clientPk.value = client.id
+    inpClientId.value = client.clientId
+    inpName.value = client.name
+    inpDesc.value = client.description || ""
+    inpSecret.value = ""
+    inpUris.value = (client.redirectUris || []).join("\n")
+    formError.textContent = ""
+    formContainer.style.display = "block"
+    formContainer.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }
+
+  function resetForm() {
+    editingId = null
+    formTitle.textContent = "Nuevo cliente SSO"
+    clientPk.value = ""
+    inpClientId.value = ""
+    inpName.value = ""
+    inpDesc.value = ""
+    inpSecret.value = ""
+    inpUris.value = ""
+    formError.textContent = ""
+    formContainer.style.display = "none"
+  }
+
+  document.getElementById("btnNew")?.addEventListener("click", () => { resetForm(); formContainer.style.display = "block" })
+  document.getElementById("btnCancel")?.addEventListener("click", resetForm)
+
+  document.getElementById("btnSave")?.addEventListener("click", async () => {
+    formError.textContent = ""
+    const clientId = inpClientId.value.trim()
+    const name = inpName.value.trim()
+    const description = inpDesc.value.trim()
+    const clientSecret = inpSecret.value.trim()
+    const redirectUris = inpUris.value.split("\n").map((s) => s.trim()).filter(Boolean)
+
+    if (!clientId || !name) {
+      formError.textContent = "Completa los campos obligatorios: ID y nombre"
+      return
+    }
+
+    const payload: Record<string, unknown> = { clientId, name, description, redirectUris }
+    if (editingId) {
+      payload.id = editingId
+      if (clientSecret) payload.clientSecret = clientSecret
+    } else {
+      payload.clientSecret = clientSecret
+    }
+
+    try {
+      const res = await fetch("/api/admin/oidc", {
+        method: editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Error")
+      }
+      resetForm()
+      loadClients()
+    } catch (err: any) {
+      formError.textContent = err.message || "Error guardando"
+    }
+  })
+
+  loadClients()
+</script>

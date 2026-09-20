@@ -1,0 +1,134 @@
+---
+import { verifySessionToken } from "../lib/jwt"
+import { findMemberByPersonalEmail, isAdmin as checkIsAdmin } from "../lib/members"
+import { getDB } from "../lib/d1"
+
+export interface Props {
+  title: string
+  subtitle?: string
+}
+
+const { title, subtitle } = Astro.props
+
+const token = Astro.cookies.get("session_token")?.value || ""
+let authorized = false
+let memberName = ""
+let memberEmail = ""
+
+try {
+  const payload = await verifySessionToken(token)
+  const db = await getDB()
+  const member = await findMemberByPersonalEmail(db, payload.personalEmail)
+  authorized = member ? checkIsAdmin(member) : false
+  if (member) {
+    memberName = member.name
+    memberEmail = member.personalEmail
+  }
+} catch {
+  authorized = false
+}
+
+if (!authorized) {
+  return Astro.redirect("/dashboard")
+}
+
+const path = Astro.url.pathname
+
+const nav = [
+  {
+    href: "/admin",
+    label: "Panel",
+    icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+  },
+  {
+    href: "/admin/members",
+    label: "Miembros",
+    icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  },
+  {
+    href: "/admin/logs",
+    label: "Auditoría",
+    icon: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4"/><path d="M9 12h6M9 16h6"/>',
+  },
+  {
+    href: "/admin/oidc",
+    label: "SSO",
+    icon: '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  },
+  {
+    href: "/admin/mcp",
+    label: "MCP",
+    icon: '<rect x="3" y="4" width="18" height="16"/><path d="M7 9l3 3-3 3M13 15h4"/>',
+  },
+]
+
+function isActive(href: string) {
+  if (href === "/admin") return path === "/admin" || path === "/admin/"
+  return path.startsWith(href)
+}
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="/styles/main.css" />
+    <title>{title} — Admin GSPinar</title>
+  </head>
+  <body class="admin-page">
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="admin-brand">
+          <span class="logo">GSP</span>
+          <span>
+            <span class="name">GSPinar</span>
+            <span class="sub">Administración</span>
+          </span>
+        </div>
+        <nav class="admin-nav">
+          {nav.map((item) => (
+            <a href={item.href} class={isActive(item.href) ? "active" : ""}>
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" set:html={item.icon} />
+              <span>{item.label}</span>
+            </a>
+          ))}
+        </nav>
+        <div class="admin-sidebar-footer">
+          <span class="who">{memberName}</span>
+          <span>{memberEmail}</span>
+          <div style="margin-top:0.5rem;">
+            <a href="#" id="adminLogout">Cerrar sesión</a>
+          </div>
+        </div>
+      </aside>
+
+      <div class="admin-main">
+        <header class="admin-header">
+          <div>
+            <div class="crumb">Administración</div>
+            <h1>{title}</h1>
+          </div>
+          <div class="header-meta">{subtitle}</div>
+        </header>
+        <main class="admin-content">
+          <slot />
+        </main>
+      </div>
+    </div>
+
+    <script>
+      document.getElementById("adminLogout")?.addEventListener("click", async (e) => {
+        e.preventDefault()
+        try {
+          await fetch("/api/logout", { method: "POST" })
+        } catch {}
+        window.location.href = "/"
+      })
+    </script>
+  </body>
+</html>

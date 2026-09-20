@@ -1,0 +1,120 @@
+---
+export interface Props {
+    label: string;
+    type?: "button" | "submit" | "reset";
+    variant?: "primary" | "secondary" | "danger" | "ghost";
+    size?: "sm" | "md" | "lg";
+    disabled?: boolean;
+    class?: string;
+    url?: string;
+}
+
+const {
+    label,
+    type = "button",
+    variant = "primary",
+    size = "md",
+    disabled = false,
+    url,
+} = Astro.props;
+const extraClass = Astro.props.class || "";
+---
+
+{
+    url ? (
+        <a href={url}>
+            <button
+                {type}
+                disabled={disabled}
+                class={`btn ${variant} ${size} ${extraClass}`}
+            >
+                {label}
+            </button>
+        </a>
+    ) : (
+        <button
+            {type}
+            disabled={disabled}
+            class={`btn ${variant} ${size} ${extraClass}`}
+        >
+            {label}
+        </button>
+    )
+}
+
+<style>
+    a {
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        align-items: center;
+        justify-content: stretch;
+        width: 100%;
+    }
+    .btn {
+        font-family: inherit;
+        border: none;
+        border-radius: 0;
+        text-align: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+    }
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* sizes */
+    .sm {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.8rem;
+    }
+    .md {
+        padding: 0.55rem 1.1rem;
+        font-size: 0.9rem;
+    }
+    .lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        height: 40px;
+        width: 100%;
+    }
+
+    /* variants */
+    .primary {
+        background: var(--morado);
+        color: var(--blanco);
+    }
+    .primary:hover:not(:disabled) {
+        filter: brightness(0.9);
+    }
+
+    .secondary {
+        background: var(--gris);
+        color: var(--negro);
+    }
+    .secondary:hover:not(:disabled) {
+        background: #d1d1d6;
+    }
+
+    .danger {
+        background: #dc3545;
+        color: white;
+    }
+    .danger:hover:not(:disabled) {
+        background: #c82333;
+    }
+
+    .ghost {
+        background: transparent;
+        color: var(--naranja);
+        border: 1px solid var(--naranja);
+    }
+    .ghost:hover:not(:disabled) {
+    }
+</style>
