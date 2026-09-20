@@ -3,3 +3,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# Informe semanal de auditoría: cada sábado a las 19:00 UTC
+[functions."weekly-report"]
+  schedule = "0 19 * * 6"
