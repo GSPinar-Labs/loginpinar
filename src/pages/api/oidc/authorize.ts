@@ -8,7 +8,6 @@ import { logAudit } from '../../../lib/audit';
 import { isSessionValid } from '../../../lib/members';
 
 export const GET: APIRoute = async ({ request, redirect }) => {
-  console.log('OIDC AUTHORIZE GET', request.url);
   const db = getDB();
   const url = new URL(request.url);
   const clientId = url.searchParams.get('client_id');
@@ -20,7 +19,6 @@ export const GET: APIRoute = async ({ request, redirect }) => {
   const codeChallenge = url.searchParams.get('code_challenge') || '';
   const codeChallengeMethod = url.searchParams.get('code_challenge_method') || (codeChallenge ? 'S256' : '');
   const loginHint = url.searchParams.get('login_hint') || '';
-  console.log('OIDC authorize params:', JSON.stringify({ clientId, redirectUri, responseType, scope, state, nonce, codeChallenge: codeChallenge?.substring(0,20), codeChallengeMethod, loginHint }));
 
   if (!clientId || !redirectUri || responseType !== 'code') {
     return new Response('Parámetros OIDC inválidos', { status: 400 });

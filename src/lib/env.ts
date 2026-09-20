@@ -11,8 +11,6 @@ function getEnvVar(name: string, defaultValue?: string): string {
 export const ENV = {
   get TURSO_DATABASE_URL() { return getEnvVar('TURSO_DATABASE_URL'); },
   get TURSO_AUTH_TOKEN() { return getEnvVar('TURSO_AUTH_TOKEN'); },
-  get EMAIL_PROVIDER() { return getEnvVar('EMAIL_PROVIDER', 'resend'); },
-  get RESEND_API_KEY() { return getEnvVar('RESEND_API_KEY'); },
   get SMTP_HOST() { return getEnvVar('SMTP_HOST'); },
   get SMTP_PORT() { return getEnvVar('SMTP_PORT', '587'); },
   get SMTP_USER() { return getEnvVar('SMTP_USER'); },

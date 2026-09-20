@@ -33,7 +33,6 @@ export const POST: APIRoute = async ({ request }) => {
     const clientId = (body.get('client_id') as string) || basicCredentials?.clientId || '';
     const clientSecret = (body.get('client_secret') as string) || basicCredentials?.clientSecret || '';
     const codeVerifier = body.get('code_verifier') as string || '';
-    console.log('OIDC TOKEN request:', JSON.stringify({ grantType, code: code?.substring(0,12), redirectUri, clientId, hasVerifier: !!codeVerifier }));
 
     if (grantType !== 'authorization_code') {
       return new Response(JSON.stringify({ error: 'unsupported_grant_type' }), {
@@ -88,7 +87,6 @@ export const POST: APIRoute = async ({ request }) => {
 
     await logAudit(db, { action: 'oidc_token', actor: email, target: clientId });
 
-    console.log('OIDC TOKEN success: sub=' + sub);
     return new Response(JSON.stringify({
       access_token: accessToken,
       id_token: idToken,

@@ -2,6 +2,8 @@
 import Button from "../components/ui/Button.astro";
 import Card from "../components/ui/Card.astro";
 import Principal from "../layouts/Principal.astro";
+import { getDB } from "../lib/d1";
+import { getClientById, validateRedirectUri } from "../lib/clients";
 
 const url = new URL(Astro.request.url);
 const instEmail = url.searchParams.get("instEmail") || "";
@@ -9,12 +11,23 @@ const oidcHint = url.searchParams.get("oidc_login_hint") || "";
 const gspEmail = instEmail || oidcHint;
 const clientId = url.searchParams.get("oidc_client_id") || "";
 const ssoName = clientId === "google-workspace" ? "Google Workspace" : clientId;
+
+// Validar redirect_uri contra el cliente para evitar open redirect en "Rechazar".
+const redirectUriParam = url.searchParams.get("oidc_redirect_uri") || "";
+let validRedirect = false;
+try {
+  const client = await getClientById(getDB(), clientId);
+  validRedirect = !!client && validateRedirectUri(client, redirectUriParam);
+} catch {
+  validRedirect = false;
+}
 ---
 
 <Principal title="Confirmación" description="Comprueba si quieres iniciar sesión con la siguiente identidad">
     <Card title={ssoName}>
         <p>{gspEmail}</p>
     </Card>
+    <input type="hidden" id="validRedirect" value={validRedirect ? "1" : ""} />
     <div id="interActions" class="inter-actions">
         <Button type="button" label="Confirmar" variant="primary" size="lg" class="inter-btn" />
         <Button type="button" label="Cerrar sesión y cambiar de cuenta" variant="secondary" size="lg" class="inter-btn" />
@@ -26,6 +39,7 @@ const ssoName = clientId === "google-workspace" ? "Google Workspace" : clientId;
     const params = new URLSearchParams(window.location.search);
     const redirectUri = params.get("oidc_redirect_uri") || "";
     const state = params.get("oidc_state") || "";
+    const validRedirect = (document.getElementById("validRedirect") as HTMLInputElement)?.value === "1";
 
     const buttons = document.querySelectorAll<HTMLButtonElement>(".inter-btn");
     const [confirmBtn, logoutBtn, rejectBtn] = buttons;
@@ -48,7 +62,7 @@ const ssoName = clientId === "google-workspace" ? "Google Workspace" : clientId;
     });
 
     rejectBtn?.addEventListener("click", () => {
-        if (redirectUri && state) {
+        if (validRedirect && redirectUri && state) {
             const rejectUrl = new URL(redirectUri);
             rejectUrl.searchParams.set("error", "access_denied");
             rejectUrl.searchParams.set("state", state);
