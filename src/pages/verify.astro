@@ -49,12 +49,20 @@ const personal = url.searchParams.get("personal") || "";
     const form = document.getElementById("verifyForm") as HTMLFormElement;
     const codeInput = document.getElementById("codeInput") as HTMLInputElement;
     const errorMsg = document.getElementById("errorMsg") as HTMLDivElement;
+    const submitBtn = form?.querySelector("button") as HTMLButtonElement | null;
 
     form?.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (submitBtn?.disabled) return;
         errorMsg.textContent = "";
         const code = codeInput.value.trim();
         if (!code || !institutionalEmail || !personal) return;
+
+        let done = false;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Verificando...";
+        }
 
         try {
             const res = await fetch("/api/verify-code", {
@@ -90,13 +98,20 @@ const personal = url.searchParams.get("personal") || "";
                     const val = params.get(key);
                     if (val) interUrl.searchParams.set(key, val);
                 }
+                done = true;
                 window.location.href = interUrl.toString();
                 return;
             }
 
+            done = true;
             window.location.href = "/dashboard";
         } catch {
             errorMsg.textContent = "Error de conexión. Inténtalo de nuevo.";
+        } finally {
+            if (submitBtn && !done) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Iniciar Sesión";
+            }
         }
     });
 </script>

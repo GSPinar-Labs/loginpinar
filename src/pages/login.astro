@@ -42,12 +42,21 @@ const institutionalEmail =
     const form = document.getElementById("personalForm") as HTMLFormElement;
     const input = document.getElementById("personalEmail") as HTMLInputElement;
     const errorMsg = document.getElementById("errorMsg") as HTMLDivElement;
+    const submitBtn = form?.querySelector("button") as HTMLButtonElement | null;
 
     form?.addEventListener("submit", async (e) => {
         e.preventDefault();
+        // Evita envíos duplicados si el usuario pulsa varias veces mientras carga
+        if (submitBtn?.disabled) return;
         errorMsg.textContent = "";
         const personalEmail = input.value.trim();
         if (!personalEmail || !institutionalEmail) return;
+
+        let done = false;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Enviando...";
+        }
 
         try {
             const res = await fetch("/api/verify-email", {
@@ -80,9 +89,15 @@ const institutionalEmail =
                 if (val) verifyUrl.searchParams.set(key, val);
             }
 
+            done = true;
             window.location.href = verifyUrl.toString();
         } catch {
             errorMsg.textContent = "Error de conexión. Inténtalo de nuevo.";
+        } finally {
+            if (submitBtn && !done) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Enviar código";
+            }
         }
     });
 </script>
