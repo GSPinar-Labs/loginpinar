@@ -2,7 +2,7 @@
 
 > Sistema de Single Sign-On para el Grupo Scout Pinar. Permite a los miembros acceder a sus cuentas `@gruposcoutpinar.com` verificándose desde su correo personal.
 >
-> **Arquitectura:** Astro 7 (SSR) + Netlify + Turso (libSQL) + SendPulse
+> **Arquitectura:** Astro 7 (SSR) + Azure Container Apps + Turso (libSQL) + SendPulse
 >
 > **URL de producción:** `https://login.gspinar.com`
 
@@ -13,7 +13,7 @@
 1. [Desarrollo local](#desarrollo-local)
 2. [Variables de entorno](#variables-de-entorno)
 3. [Base de datos (Turso)](#base-de-datos-turso)
-4. [Despliegue en Netlify](#despliegue-en-netlify)
+4. [Despliegue en Azure](#despliegue-en-azure-container-apps)
 5. [Configurar Google Workspace OIDC](#configurar-google-workspace-oidc)
 6. [Crear el primer administrador](#crear-el-primer-administrador)
 7. [Dominio personalizado](#dominio-personalizado)
@@ -104,14 +104,44 @@ Si vienes de otra base de datos SQLite, importa el dump con `turso db shell <db>
 
 ---
 
-## Despliegue en Netlify
+## Despliegue en Azure (Container Apps)
 
-1. Conecta el repositorio en Netlify (**Build & deploy → Link repository**).
-2. Configura el **build command** (`npm run build`) y el **publish directory** (`dist`).
-3. Añade las variables de entorno en **Site configuration → Environment variables**.
-4. Cada push a la rama de producción despliega automáticamente.
+La app se empaqueta en un contenedor (`Dockerfile`) y se ejecuta en Azure Container Apps (serverless, escala a cero). Requiere el CLI `az` y una suscripción de Azure.
 
-`netlify.toml` ya define el comando de build y `NODE_VERSION`.
+```bash
+# 1. Login
+az login
+
+# 2. Grupo de recursos + registro de contenedores
+az group create -n gspinar-sso-rg -l spaincentral
+az acr create -n <TU_REGISTRO> -g gspinar-sso-rg --sku Basic --admin-enabled true
+
+# 3. Construir y subir la imagen (usa un tag único para evitar cachés)
+TAG=$(date +%Y%m%d-%H%M%S)
+az acr build -r <TU_REGISTRO> -t gspinar-sso:$TAG .
+
+# 4. Crear el Container App (puerto 8080) con las variables de entorno
+az containerapp up -n gspinar-sso -g gspinar-sso-rg --location spaincentral \
+  --image <TU_REGISTRO>.azurecr.io/gspinar-sso:$TAG \
+  --ingress external --target-port 8080 \
+  --env-vars TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... JWT_SECRET=... \
+             OIDC_CLIENT_ID=google-workspace OIDC_CLIENT_SECRET=... \
+             OIDC_ISSUER=https://login.gspinar.com APP_URL=https://login.gspinar.com \
+             GOOGLE_REDIRECT_URI=... ADMIN_EMAIL=... CRON_SECRET=... MCP_SECRET=... \
+             SENDPULSE_CLIENT_ID=... SENDPULSE_CLIENT_SECRET=... EMAIL_FROM=... \
+             OIDC_PRIVATE_JWK=...
+```
+
+> **Seguridad**: los secretos (`TURSO_AUTH_TOKEN`, `OIDC_PRIVATE_JWK`, `JWT_SECRET`, …) no se escriben en el código ni en el repositorio. Configúralos como variables de entorno o, mejor, con `az containerapp secret set` + `secretref:`.
+
+### Actualizar la app (tras cambiar el código)
+
+```bash
+TAG=$(date +%Y%m%d-%H%M%S)
+az acr build -r <TU_REGISTRO> -t gspinar-sso:$TAG .
+az containerapp update -n gspinar-sso -g gspinar-sso-rg \
+  --image <TU_REGISTRO>.azurecr.io/gspinar-sso:$TAG
+```
 
 ---
 
@@ -156,11 +186,11 @@ Después, inicia sesión en `https://login.gspinar.com` con ese correo y accede 
 
 ## Dominio personalizado
 
-Apunta `login.gspinar.com` al site de Netlify:
+Apunta `login.gspinar.com` al Container App:
 
-1. Añade el dominio en **Netlify → Domain management**.
-2. En tu DNS, crea el registro que Netlify indique (CNAME a `<site>.netlify.app`).
-3. Netlify emite el certificado TLS automáticamente.
+1. Añade el hostname: `az containerapp hostname add -n gspinar-sso -g gspinar-sso-rg --hostname login.gspinar.com`.
+2. En tu DNS, crea los registros que Azure indique (TXT de verificación `asuid.*` + CNAME al hostname del Container App).
+3. Azure emite el certificado TLS automáticamente.
 
 > El dominio es el **issuer OIDC**: no debe cambiar (rompería Google Workspace y las sesiones).
 
@@ -170,7 +200,7 @@ Apunta `login.gspinar.com` al site de Netlify:
 
 `POST /api/mcp` expone herramientas de gestión de miembros para agentes de IA (Streamable HTTP, autenticación Bearer con `MCP_SECRET`):
 
-- `listar_miembros`, `ver_miembro`, `crear_miembro`, `asignar_correos`, `anadir_correo`, `eliminar_miembro`
+- `listar_miembros`, `ver_miembro`, `crear_miembro`, `asignar_correos`, `anadir_correo`, `cerrar_sesion`, `eliminar_miembro`
 
 El apartado **MCP** del panel (`/admin/mcp`) muestra el endpoint, las herramientas y la actividad reciente.
 

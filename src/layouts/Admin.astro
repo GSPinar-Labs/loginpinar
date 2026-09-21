@@ -1,6 +1,6 @@
 ---
 import { verifySessionToken } from "../lib/jwt"
-import { findMemberByPersonalEmail, isAdmin as checkIsAdmin } from "../lib/members"
+import { findMemberByPersonalEmail, isAdmin as checkIsAdmin, isSessionValid } from "../lib/members"
 import { getDB } from "../lib/d1"
 
 export interface Props {
@@ -23,6 +23,13 @@ try {
   if (member) {
     memberName = member.name
     memberEmail = member.personalEmail
+  }
+  if (authorized) {
+    const valid = await isSessionValid(db, payload.personalEmail, payload.iat as number)
+    if (!valid) {
+      Astro.cookies.delete("session_token", { path: "/" })
+      return Astro.redirect("/")
+    }
   }
 } catch {
   authorized = false
@@ -84,11 +91,11 @@ function isActive(href: string) {
     <div class="admin-shell">
       <aside class="admin-sidebar">
         <div class="admin-brand">
-          <span class="logo">GSP</span>
-          <span>
-            <span class="name">GSPinar</span>
-            <span class="sub">Administración</span>
-          </span>
+          <img class="logo" src="/favicon.svg" alt="GSPinar" />
+          <span class="name">GSPinar</span>
+          <button class="nav-toggle" id="navToggle" aria-label="Menú" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
         </div>
         <nav class="admin-nav">
           {nav.map((item) => (
@@ -128,6 +135,14 @@ function isActive(href: string) {
           await fetch("/api/logout", { method: "POST" })
         } catch {}
         window.location.href = "/"
+      })
+
+      // Menú hamburguesa en móvil
+      const navToggle = document.getElementById("navToggle") as HTMLButtonElement | null
+      const sidebar = navToggle?.closest(".admin-sidebar")
+      navToggle?.addEventListener("click", () => {
+        const open = sidebar?.classList.toggle("nav-open") ?? false
+        navToggle.setAttribute("aria-expanded", String(open))
       })
     </script>
   </body>

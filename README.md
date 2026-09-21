@@ -2,7 +2,7 @@
 
 Sistema de autenticación única (SSO) para el Grupo Scout Pinar. Los miembros acceden a sus cuentas `@gruposcoutpinar.com` verificándose con un código OTP enviado a su email personal, y el sistema emite un `id_token` OIDC para iniciar sesión en Google Workspace.
 
-> **URL:** `https://login.gspinar.com` · **Stack:** Astro 7 (SSR) + Netlify · **DB:** Turso (libSQL) · **Email:** SendPulse
+> **URL:** `https://login.gspinar.com` · **Stack:** Astro 7 (SSR) + Azure Container Apps · **DB:** Turso (libSQL) · **Email:** SendPulse
 
 ## Flujo
 
@@ -19,7 +19,7 @@ Para Google Workspace el flujo OIDC es transparente: si un usuario intenta acced
 | Capa | Tecnología |
 |---|---|
 | Framework | Astro 7 (SSR) |
-| Runtime | Netlify Functions |
+| Runtime | Azure Container Apps (Node) |
 | Base de datos | Turso (libSQL) |
 | Email | SendPulse API |
 | JWT | jose + Web Crypto API |
@@ -27,7 +27,7 @@ Para Google Workspace el flujo OIDC es transparente: si un usuario intenta acced
 
 ## Servidor MCP
 
-`POST /api/mcp` expone herramientas para que agentes de IA gestionen los miembros (listar, crear, asignar correos, eliminar). Autenticación con `Authorization: Bearer <MCP_SECRET>`. Ver el apartado **MCP** del panel de administración.
+`POST /api/mcp` expone herramientas para que agentes de IA gestionen los miembros (listar, ver, crear, asignar correos, cerrar sesión, eliminar). Autenticación con `Authorization: Bearer <MCP_SECRET>`. Ver el apartado **MCP** del panel de administración.
 
 ## Desarrollo local
 
@@ -41,10 +41,12 @@ Servidor en `http://localhost:4321`.
 
 ## Deploy
 
-Despliegue automático vía Git (Netlify CI) o manual:
+La app se empaqueta en un contenedor (`Dockerfile`) y se despliega en **Azure Container Apps** (serverless, escala a cero). Ver [SETUP.md](SETUP.md) para los pasos completos y seguros (sin secretos en el repositorio).
 
 ```bash
-npm run build
+TAG=$(date +%Y%m%d-%H%M%S)
+az acr build -r <tu-registro> -t gspinar-sso:$TAG .
+az containerapp update -n gspinar-sso -g <tu-grupo> --image <tu-registro>.azurecr.io/gspinar-sso:$TAG
 ```
 
 ## API

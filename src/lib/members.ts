@@ -95,8 +95,12 @@ export async function updateMember(db: D1Database, id: number, data: Partial<Omi
   if (data.personalEmail !== undefined) { fields.push('personalEmail = ?'); values.push(data.personalEmail.toLowerCase().trim()); }
   if (data.institutionalEmails !== undefined) { fields.push('institutionalEmails = ?'); values.push(JSON.stringify(data.institutionalEmails.map(e => e.toLowerCase().trim()))); }
 
+  const now = new Date().toISOString();
+  // Cualquier edición cierra la sesión activa del miembro, para que los cambios se apliquen al instante.
+  fields.push('force_logout_after = ?');
+  values.push(now);
   fields.push('updatedAt = ?');
-  values.push(new Date().toISOString());
+  values.push(now);
   values.push(id);
 
   await db.prepare(`UPDATE members SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();

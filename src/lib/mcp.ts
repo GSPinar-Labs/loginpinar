@@ -8,6 +8,7 @@ import {
   createMember,
   updateMember,
   deleteMember,
+  forceLogoutMember,
   type Member,
 } from './members';
 import { logAudit } from './audit';
@@ -78,6 +79,11 @@ export const MCP_TOOLS: McpToolInfo[] = [
   {
     name: 'eliminar_miembro',
     description: 'Elimina un miembro por su id o por su correo personal.',
+  },
+  {
+    name: 'cerrar_sesion',
+    description:
+      'Fuerza el cierre de sesión de un miembro (invalida su sesión actual). Identifícalo por id o por correo personal.',
   },
 ];
 
@@ -229,6 +235,32 @@ export function createMcpServer(): McpServer {
         details: { via: 'mcp', eliminated: serializeMember(member) },
       });
       return text({ success: true, eliminado: serializeMember(member) });
+    }
+  );
+
+  server.registerTool(
+    'cerrar_sesion',
+    {
+      description:
+        'Fuerza el cierre de sesión de un miembro (invalida su sesión actual). Identifícalo por id o por correo personal.',
+      inputSchema: {
+        id: z.number().int().optional().describe('ID numérico del miembro'),
+        personalEmail: z.string().optional().describe('Correo personal del miembro'),
+      },
+    },
+    async ({ id, personalEmail }) => {
+      if (id === undefined && !personalEmail) return fail('Indica "id" o "personalEmail".');
+      const db = getDB();
+      const member = await resolveMember(id, personalEmail);
+      if (!member || member.id === undefined) return fail('Miembro no encontrado.');
+      await forceLogoutMember(db, member.id);
+      await logAudit(db, {
+        action: 'member_update',
+        actor: ACTOR,
+        target: member.personalEmail,
+        details: { action: 'force_logout', via: 'mcp' },
+      });
+      return text({ success: true, id: member.id, name: member.name });
     }
   );
 

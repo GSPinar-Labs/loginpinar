@@ -143,9 +143,8 @@ import { ENV } from "../../lib/env"
     membersTable.innerHTML = filtered.map((m) => {
       const gspEmails: string[] = m.institutionalEmails || []
       const isAdmin = gspEmails.includes(ADMIN)
-      const loggedOut = !!m.force_logout_after
-      return `<tr${loggedOut ? ' class="force-logged-out"' : ''}>
-        <td>${esc(m.name)}${loggedOut ? ' <span class="logged-out-badge">(sesión cerrada)</span>' : ''}</td>
+      return `<tr>
+        <td>${esc(m.name)}</td>
         <td>${esc(m.personalEmail)}</td>
         <td>${gspEmails.length ? gspEmails.map((e: string) => `<span class="gsp-chip-plain">${esc(e)}</span>`).join("") : "—"}</td>
         <td>${isAdmin ? '<span class="badge badge-neutral">Admin</span>' : '<span class="text-muted">No</span>'}</td>

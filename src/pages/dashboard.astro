@@ -3,6 +3,8 @@ import Principal from "../layouts/Principal.astro";
 import Card from "../components/ui/Card.astro";
 import Button from "../components/ui/Button.astro";
 import { verifySessionToken } from "../lib/jwt";
+import { isSessionValid } from "../lib/members";
+import { getDB } from "../lib/d1";
 
 const token = Astro.cookies.get("session_token")?.value || "";
 if (!token) return Astro.redirect("/");
@@ -10,6 +12,12 @@ if (!token) return Astro.redirect("/");
 let user;
 try {
     user = await verifySessionToken(token);
+    const db = getDB();
+    const valid = await isSessionValid(db, user.personalEmail, user.iat as number);
+    if (!valid) {
+        Astro.cookies.delete("session_token", { path: "/" });
+        return Astro.redirect("/");
+    }
 } catch {
     return Astro.redirect("/");
 }
