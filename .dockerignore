@@ -1,0 +1,19 @@
+node_modules
+dist
+.netlify
+.astro
+.wrangler
+.git
+.gitignore
+
+# secretos y notas locales (NUNCA incluir en la imagen)
+.env
+.env.*
+!.env.example
+AGENTS.md
+NOTES.local.md
+*.local.*
+local.db*
+
+.DS_Store
+*.log
